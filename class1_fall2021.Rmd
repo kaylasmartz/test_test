@@ -1,0 +1,346 @@
+---
+title: "Class 1"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message= F, warning = F)
+```
+
+# Agenda
+
+1. Install and load (and see how to use) the lightbulb package for working with tutorials.
+2. Notes on compiling .Rmd files.
+3. Loading packages and data.
+4. Concepts needed for the case: Simpson's paradox.
+5. Skills  needed for the case:
+    - Mean versus median as a measure of central tendency.
+    - Review of dplyr and ggplot2.
+    
+# Install lightbulb
+
+# 1. Install and load the devtools R package:
+
+```{r}
+install.packages("devtools")
+library(devtools)
+```
+
+# 2. Install the lightbulb package from github:
+
+```{r}
+install_github("jefftwebb/lightbulb")
+```
+
+# 3. Install and load the learnr package:
+
+```{r}
+install.packages("learnr")
+library(learnr)
+```
+
+# 4. There are two ways to access the tutorial once you have completed
+# the above steps:
+
+# (a) click the "tutorial" tab in the upper right quadrant in R Studio, then
+# navigate to the tutorial;
+
+# (b) in the console run
+
+```{r}
+run_tutorial("probability", package = "lightbulb")
+
+```
+
+# This will automatically open a browser window with the tutorial you have specified.
+
+# Notes on compiling .Rmd files
+
+**Please do not submit a .Rmd  file for the case.** In order to be viewable in Canvas (and available for grading), you must compile/knit your document to HTML. You will inevitably encounter some errors. Here is some guidance for working through those errors:
+
+1. **Probably the most common reason that knitting  fails is that you have errors in your code.** The easiest way to discover these is to first clear your environment in the upper right quadrant (click the broom icon), and then run each code chunk in order. If you encounter no errors then you should be good to go.
+
+2.  Some students have problems knitting to HTML. The format that seems to cause the fewest problems is Word. Try that if HTML is causing problems.  In the header  at the top of the document, simply specify: "output: word_document."
+
+3. Make sure that `echo = T` in the initial code chunk (as above). This allows us to see both your code and the results. I have also added `message = T` and `warning = T` to suppress all non-essential output during knitting.
+
+4.  Most questions for the cases include some writing. To get full credit, make sure to include these outside of the code chunks, as I have here. Even better, highlight your answer with a ">" like this:
+
+> Here is my answer...
+
+# Load packages
+
+```{r}
+library(tidyverse)
+library(msm) # you'll need to install this to run some of the code below.
+library(ggplot2)
+```
+
+# Simpson's paradox
+
+Simpson's paradox was discussed in the Introduction to Business Analytics course (briefly) as an illustration of why it is important to do exploratory data analysis prior to modeling.
+
+Load the dataset, `simpsons_data.csv`, which is available on Canvas under Files --> Webinar materials --> Data.
+
+```{r echo = T}
+s <- read_csv("simpsons_data.csv")[, -1] # remove the first column, X1, which is a rownumber
+
+glimpse(s)
+```
+
+Simpson's paradox is not really a paradox but it can produce some confusion if you are not expecting it. The paradox is that a relationship between two variables, x and y, can reverse when conditioning on a third variable, z.
+
+A picture helps:
+
+```{r}
+ggplot(data = s, aes(x = x, y = y)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) + 
+  labs(title = "y ~ x")
+```
+
+The relationship is clearly negative: as x goes up, y goes down..  Yet when the relationship between x and y is conditioned on group---when the relationship is summarized *within* each group---the situation changes:
+
+```{r}
+ggplot(data = s, aes(x = x, y = y, col = group)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = F) + 
+  labs(title = "y ~ x, varying by group")
+```
+
+The relationship between x and y in the entire dataset reverses when computed within groups. Beware:  a seemingly obvious data summary---like the slope of a regression line or a mean---can be very misleading if you do not understand the data! In this case it would not be appropriate to say that the relationship between x and y is negative.  The relationship is actually positive.
+
+An example came up in a recent MSBA capstone project:
+
+- The capstone team was assessing an undergraduate program, UP, for its impact on student retention (defined as enrolling in the following semester).
+
+- The average retention (the proportion of students re-enrolling) was higher among UP vs. non-UP. Here is a simulation of the data for illustration:
+
+```{r}
+# simulated data
+set.seed(124)
+sim_data <- data.frame(student = 1:1000,
+                       retention = NA,
+                       program = c(rep("UP", 800), rep("non-UP", 200)),
+                       gpa = c(rtnorm(n = 800, mean = 3.4, lower = 0, upper = 4), 
+                               rtnorm(n = 200, mean = 2.4, lower = 0, upper = 4))) %>% 
+  mutate(gpa_bucket = round(gpa)) %>% 
+  group_by(gpa_bucket) %>% 
+  mutate(retention = rbinom(n = n(), size = 1, prob = 2.5 * gpa_bucket / 10))
+
+glimpse(sim_data)
+                         
+```
+
+The simulation assumes that UP has more students than non-UP (800 vs. 200), and that its students tend to have better GPAs (3.4 vs. 2.4).
+
+And here is a summary table of the difference between UP and non-UP retention.
+
+```{r}
+# Overall retention
+sim_data %>% 
+  group_by(program) %>% 
+  summarize(retention_rate = mean(retention))
+```
+
+UP seems to be super successful at promoting retention!!! Well, not so fast...
+
+When the capstone team did the comparison *within* GPA buckets (A, B, C, etc) average retention was higher among non-UP!  Here is an illustration of the situation using the simulated data. 
+
+```{r}
+# Retention by program and gpa
+sim_data %>% 
+  group_by(gpa_bucket = factor(gpa_bucket), program) %>% 
+  summarize(retention_rate = mean(retention)) %>% 
+  ggplot(aes(x = gpa_bucket, y = retention_rate, fill = program)) +
+  geom_col(position = "dodge") +
+  theme_minimal()+
+  labs(title = "Retention Rate by Program and GPA")
+```
+
+Non-UP has about the same---or slightly better---retention than UP.
+
+Why is this happening?  
+
+UP enrolls more A and B students who tend to have higher retention, and it enrolls more students:  800 vs. 200.  Thus, A and B students contribute more observations to the calculation of the overall retention rate for UP.  The overall retention difference is thus produced by:  
+
+1. The sorts of students enrolled in UP. 
+2. The greater number of students enrolled in UP.
+
+What should the capstone team have reported?  Was retention higher or lower for UP? The team had apparently conflicting information.  (There was a desire among stakeholders to see UP higher.)
+
+# Prepare for the case
+
+## Load and inspect example data: day.csv
+
+The dataset, `day.csv`, is available on Canvas under Files. This is a dataset that we will be using frequently for illustration.
+
+Make sure the file is in your working directory.  The best way to get it there is to move it manually from your downloads folder. If successful you should see the file appear in your working directory (by default displayed in the lower right quadrant under the Files tab).  How do you know what your working directory is?
+
+```{r}
+getwd()
+```
+
+Next load the file into R's working memory with `read_csv()` (the base R function, `read.csv()`, would work too).
+
+```{r}
+day <- read_csv("day.csv")
+
+glimpse(day)
+```
+
+Here is a data dictionary:
+
+- X1 : extraneous row count; same as instant
+- instant: record index 
+- dteday : date 
+- season : season (1:winter, 2:spring, 3:summer, 4:fall) 
+- yr : year (0: 2011, 1:2012) 
+- mnth : month ( 1 to 12) 
+- hr : hour (0 to 23) 
+- holiday : whether day is holiday or not (0/1)
+- weekday : day of the week (0 to 6)
+- workingday : if day is neither weekend nor holiday is 1, otherwise is 0. 
+- weathersit : 1: Clear, Few clouds, Partly cloudy; 2: Mist + Cloudy, Mist + Broken clouds, Mist + Few clouds, Mist; 3: Light Snow, Light Rain + Thunderstorm + Scattered clouds, Light Rain + Scattered clouds; 4: Heavy Rain + Ice Pallets + Thunderstorm + Mist, Snow + Fog.
+- temp : Normalized temperature in Celsius. The values are derived via (t-t_min)/(t_max-t_min), t_min=-8, t_max=+39 (only in hourly scale) 
+- atemp: Normalized feeling temperature in Celsius. The values are derived via (t-t_min)/(t_max-t_min), t_min=-16, t_max=+50 (only in hourly scale) 
+- hum: Normalized humidity. The values are divided to 100 (max) 
+- windspeed: Normalized wind speed. The values are divided to 67 (max) 
+- casual: count of casual users 
+- registered: count of registered users 
+- cnt: count of total rental bikes including both casual and registered 
+
+See details here: https://archive.ics.uci.edu/ml/datasets/bike+sharing+dataset.
+
+
+## Skills and code needed  for the case
+
+1. Create a summary table of sample statistics for different groups using functions such as:  `mean()`, `median()`, `quantile()`, `n()`, `sd()`.  Hint:  use `summarize()` and `group_by()`!!
+
+2. Use ggplot2 to visualize distributions for different groups using a histogram or a density plot or boxplot. Use `geom_histogram()` and `geom_density()` or `geom_boxplot()`.
+
+3. When to use mean vs. median to measure central tendency.
+
+4. Calculate a percentage based on a binary indicator variable (0/1).
+
+5. Create a summary table for multiple groups.  Hint: again, use `group_by()`.
+
+6. Critically and thoughtfully evaluate your results with respect to the case.  
+
+## 1. Create a summary table
+
+Calculate mean, median, sd and the 10th and 90th percentile of cnt by season.
+
+Use group_by()!
+
+```{r}
+
+day %>% 
+  group_by(season) %>% 
+  summarize(mean = mean(cnt),
+            median = median(cnt),
+            sd = sd(cnt),
+            percentile_10 = quantile(cnt, prob = .1),
+            percentile_90 = quantile(cnt, prob = .9))
+
+```
+
+## 2. Use ggplot2 to visualize distributions by group
+
+Visualize the distribution of cnt by season.
+
+Different plot types are available.  Pick the one that you think does the best job of communicating the key insights.
+
+```{r}
+# facet_wrap
+ggplot(day, aes(x = cnt)) + 
+  geom_histogram() + 
+  facet_wrap(~season) +
+  labs(title = "ridership ~ season")
+```
+
+
+```{r}
+# boxplot
+ggplot(day, aes(x = factor(season), y = cnt)) + 
+  geom_boxplot() +
+  labs(title = "ridership ~ season")
+```
+
+```{r}
+# density plot with lines for each season 
+ggplot(day, aes(x = cnt, col = factor(season))) + 
+  geom_density() +
+  labs(title = "ridership ~ season")
+
+```
+
+## 3. Mean or median?
+
+Simple question, simple answer:  is the distribution skewed? Then use the median.  All real world distributions are more or less skewed, so then the question is: how skewed? At what point do we opt for the median rather than the mean?
+
+Here is an illustration using simulated data.
+
+```{r}
+# Simulated data
+df <- data.frame(group = c(rep("normal",  500), rep("exponential", 500)),
+           observation = c(rnorm(500), rexp(500, rate = 1/5)))
+
+# Visualize groups together
+
+ggplot(df, aes(x = observation, col = group)) + 
+  geom_density() 
+
+```
+
+
+```{r}
+
+# Create summary table with mean and median, etc
+
+df %>% 
+  group_by(group) %>% 
+  summarize(mean = mean(observation),
+            median = median(observation),
+            min = min(observation),
+            max = max(observation),
+            sd = sd(observation))
+
+```
+
+## 4. Calculate a percentage
+
+Example: percentage of days in the data that are holidays?
+
+```{r}
+
+day %>% 
+  summarize(percent_hol = (mean(holiday) * 100) %>%  round(2))
+
+```
+
+Example:  percentage of clear days (coded as weathersit = 1)
+
+```{r}
+
+
+```
+
+## 5. Create a summary table for multiple groups
+
+Example:  average ridership by season and holiday.
+
+```{r}
+day %>% 
+  group_by(season, holiday) %>% 
+  summarize(avg_ridership = mean(cnt))
+
+
+```
+
+## 6. Critically and thoughtfully evaluate your results with respect to the case.  
+
+Here is what I'm looking for in your answer: (1) take a clear position, (2) use *specific* quantitative evidence to argue for your position (cite numbers!), (3) use details accurately from the preliminary analyses.
+
+In general, each case will conclude with a recommendation.  Imagine that you are writing this to/for an executive at the company who has not seen your answers to the previous questions.  You therefore need to incorporate  relevant quantitative details to support your recommendation. Do not rely on jargon.  Try to explain your important results clearly and simply. Your writing should be free of mistakes.
+
