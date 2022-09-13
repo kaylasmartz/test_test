@@ -150,19 +150,6 @@ See details here: https://archive.ics.uci.edu/ml/datasets/bike+sharing+dataset.
 
 2. Use ggplot2 to visualize distributions for different groups using a histogram or a density plot or boxplot. Use `geom_histogram()` and `geom_density()` or `geom_boxplot()`.
 
-3. When to use mean vs. median to measure central tendency.
-
-4. Calculate a percentage based on a binary indicator variable (0/1).
-
-5. Create a summary table for multiple groups.  Hint: again, use `group_by()`.
-
-6. Critically and thoughtfully evaluate your results with respect to the case.  
-
-## 1. Create a summary table
-
-Calculate mean, median, sd and the 10th and 90th percentile of cnt by season.
-
-Use group_by()!
 
 ```{r}
 
